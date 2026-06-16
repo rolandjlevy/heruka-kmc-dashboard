@@ -1,0 +1,13 @@
+{
+  "name": "WC Dashboard",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": {
+      "label": "Dashboard",
+      "onAutoForward": "openBrowser"
+    }
+  },
+  "postCreateCommand": "npm i -g vercel",
+  "postStartCommand": "cp -n .env.example .env.local 2>/dev/null; echo '✅ Add your WC keys to .env.local then run: vercel dev'"
+}

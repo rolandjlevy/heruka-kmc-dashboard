@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Heruka KMC — Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --color-bg:           #F9FAFB;
+      --color-surface:      #FFFFFF;
+      --color-text:         #111827;
+      --color-text-muted:   #6B7280;
+      --color-border:       #E5E7EB;
+      --color-primary:      #3B82F6;
+      --color-success:      #10B981;
+      --color-warning:      #F59E0B;
+      --color-danger:       #EF4444;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 16px;
+      background: var(--color-bg);
+      color: var(--color-text);
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 1.5rem;
+    }
+
+    /* ── Header ─────────────────────────────────────────── */
+
+    .header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--color-border);
+      margin-bottom: 1.5rem;
+    }
+
+    .header-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--color-text);
+      line-height: 1.2;
+    }
+
+    .header-subtitle {
+      font-size: 0.875rem;
+      color: var(--color-text-muted);
+      margin-top: 0.25rem;
+    }
+
+    .header-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.5rem;
+    }
+
+    .period-btns {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .period-btn {
+      padding: 0.375rem 0.875rem;
+      border: 1px solid var(--color-border);
+      border-radius: 0.375rem;
+      background: var(--color-surface);
+      color: var(--color-text);
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+
+    .period-btn:hover:not(.active) {
+      background: var(--color-bg);
+    }
+
+    .period-btn.active {
+      background: var(--color-primary);
+      color: #fff;
+      border-color: var(--color-primary);
+    }
+
+    .last-updated {
+      font-size: 0.8125rem;
+      color: var(--color-text-muted);
+    }
+
+    /* ── Section spacing ─────────────────────────────────── */
+
+    .section { margin-bottom: 1.5rem; }
+
+    .section-heading {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--color-text);
+      margin-bottom: 1rem;
+    }
+
+    /* ── Cards ───────────────────────────────────────────── */
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+    }
+
+    .card {
+      background: var(--color-surface);
+      border-radius: 0.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      padding: 1.25rem 1.5rem;
+    }
+
+    .card-label {
+      font-size: 0.875rem;
+      color: var(--color-text-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .card-value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--color-text);
+      line-height: 1.2;
+    }
+
+    /* ── Panels (chart/table wrappers) ───────────────────── */
+
+    .panel {
+      background: var(--color-surface);
+      border-radius: 0.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      padding: 1.5rem;
+    }
+
+    .panel-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--color-text);
+      margin-bottom: 1rem;
+    }
+
+    .chart-wrapper {
+      position: relative;
+      width: 100%;
+    }
+
+    /* ── Two-column layout ───────────────────────────────── */
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    /* ── Tables ──────────────────────────────────────────── */
+
+    .table-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+
+    thead th {
+      padding: 0.75rem 1rem;
+      text-align: left;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--color-text-muted);
+      background: var(--color-bg);
+      border-bottom: 1px solid var(--color-border);
+      white-space: nowrap;
+    }
+
+    tbody td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--color-border);
+      vertical-align: middle;
+    }
+
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:nth-child(even) td { background: var(--color-bg); }
+
+    /* ── Badges ──────────────────────────────────────────── */
+
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .badge-success { background: #D1FAE5; color: #065F46; }
+    .badge-warning { background: #FEF3C7; color: #92400E; }
+    .badge-danger  { background: #FEE2E2; color: #991B1B; }
+
+    /* ── Skeleton ─────────────────────────────────────────── */
+
+    @keyframes shimmer {
+      0%   { background-position: -400% 0; }
+      100% { background-position:  400% 0; }
+    }
+
+    .skeleton {
+      background: linear-gradient(
+        90deg,
+        #e5e7eb 25%,
+        #f3f4f6 50%,
+        #e5e7eb 75%
+      );
+      background-size: 400% 100%;
+      animation: shimmer 1.6s ease-in-out infinite;
+      border-radius: 0.25rem;
+    }
+
+    .sk-label { height: 0.875rem; width: 45%; margin-bottom: 0.625rem; }
+    .sk-value { height: 2.5rem;   width: 65%; }
+    .sk-cell  { height: 0.875rem; width: 80%; }
+    .sk-chart { height: 300px; border-radius: 0.375rem; }
+    .sk-doughnut { height: 260px; border-radius: 0.375rem; }
+
+    /* ── Error / Empty states ────────────────────────────── */
+
+    .error-box {
+      background: #FEF2F2;
+      border: 1px solid #FECACA;
+      color: #991B1B;
+      border-radius: 0.5rem;
+      padding: 0.875rem 1rem;
+      font-size: 0.875rem;
+    }
+
+    .empty-box {
+      text-align: center;
+      color: var(--color-text-muted);
+      padding: 2.5rem 1rem;
+      font-size: 0.875rem;
+    }
+
+    /* ── Responsive ──────────────────────────────────────── */
+
+    @media (max-width: 768px) {
+      .two-col { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 600px) {
+      .summary-grid { grid-template-columns: repeat(2, 1fr); }
+      .card-value { font-size: 1.5rem; }
+      .header-right { align-items: flex-start; }
+      .hide-mobile { display: none !important; }
+    }
+
+    @media (max-width: 375px) {
+      .container { padding: 1rem; }
+      .period-btn { padding: 0.3rem 0.6rem; font-size: 0.8rem; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ── SECTION 1: Header ─────────────────────────────── -->
+  <header class="header">
+    <div>
+      <h1 class="header-title">Heruka KMC &mdash; Dashboard</h1>
+      <p class="header-subtitle">meditateinlondon.org</p>
+    </div>
+    <div class="header-right">
+      <div class="period-btns">
+        <button class="period-btn active" data-period="last_30_days">Last 30 days</button>
+        <button class="period-btn" data-period="last_90_days">Last 90 days</button>
+      </div>
+      <p class="last-updated" id="last-updated">&nbsp;</p>
+    </div>
+  </header>
+
+  <!-- ── SECTION 2: Summary Cards ──────────────────────── -->
+  <section class="section">
+    <div class="summary-grid" id="summary-cards">
+      <div class="card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div></div>
+      <div class="card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div></div>
+      <div class="card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div></div>
+      <div class="card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div></div>
+    </div>
+  </section>
+
+  <!-- ── SECTION 3: Sales Trend Chart ──────────────────── -->
+  <section class="section">
+    <div class="panel">
+      <h2 class="panel-title">Sales Trend</h2>
+      <div class="chart-wrapper" id="sales-chart-container">
+        <div class="skeleton sk-chart"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── SECTION 4: Top Sellers ─────────────────────────── -->
+  <section class="section">
+    <div class="panel">
+      <h2 class="panel-title">Top Sellers <span style="font-size:0.75rem;font-weight:400;color:var(--color-text-muted);">— this month</span></h2>
+      <div id="top-sellers-container">
+        <div class="table-scroll">
+          <table>
+            <thead><tr>
+              <th class="hide-mobile">#</th>
+              <th>Product</th>
+              <th>Units Sold</th>
+            </tr></thead>
+            <tbody id="top-sellers-body">
+              <tr><td class="hide-mobile"><div class="skeleton sk-cell"></div></td><td><div class="skeleton sk-cell"></div></td><td><div class="skeleton sk-cell"></div></td></tr>
+              <tr><td class="hide-mobile"><div class="skeleton sk-cell"></div></td><td><div class="skeleton sk-cell"></div></td><td><div class="skeleton sk-cell"></div></td></tr>
+              <tr><td class="hide-mobile"><div class="skeleton sk-cell"></div></td><td><div class="skeleton sk-cell"></div></td><td><div class="skeleton sk-cell"></div></td></tr>
+              <tr><td class="hide-mobile"><div class="skeleton sk-cell"></div></td><td><div class="skeleton sk-cell"></div></td><td><div class="skeleton sk-cell"></div></td></tr>
+              <tr><td class="hide-mobile"><div class="skeleton sk-cell"></div></td><td><div class="skeleton sk-cell"></div></td><td><div class="skeleton sk-cell"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── SECTION 5: Product Catalogue Overview ─────────── -->
+  <section class="section">
+    <h2 class="section-heading">Product Catalogue Overview</h2>
+    <div class="two-col">
+
+      <!-- Panel A: Category doughnut -->
+      <div class="panel">
+        <h3 class="panel-title">Products by Category</h3>
+        <div class="chart-wrapper" id="category-chart-container">
+          <div class="skeleton sk-doughnut"></div>
+        </div>
+      </div>
+
+      <!-- Panel B: Stock status table -->
+      <div class="panel">
+        <h3 class="panel-title">Stock Status</h3>
+        <div id="stock-table-container">
+          <div class="table-scroll">
+            <table>
+              <thead><tr>
+                <th>Product</th>
+                <th class="hide-mobile">Price</th>
+                <th>Stock</th>
+                <th>Status</th>
+              </tr></thead>
+              <tbody>
+                <tr><td><div class="skeleton sk-cell"></div></td><td class="hide-mobile"><div class="skeleton sk-cell"></div></td><td><div class="skeleton sk-cell"></div></td><td><div class="skeleton sk-cell"></div></td></tr>
+                <tr><td><div class="skeleton sk-cell"></div></td><td class="hide-mobile"><div class="skeleton sk-cell"></div></td><td><div class="skeleton sk-cell"></div></td><td><div class="skeleton sk-cell"></div></td></tr>
+                <tr><td><div class="skeleton sk-cell"></div></td><td class="hide-mobile"><div class="skeleton sk-cell"></div></td><td><div class="skeleton sk-cell"></div></td><td><div class="skeleton sk-cell"></div></td></tr>
+                <tr><td><div class="skeleton sk-cell"></div></td><td class="hide-mobile"><div class="skeleton sk-cell"></div></td><td><div class="skeleton sk-cell"></div></td><td><div class="skeleton sk-cell"></div></td></tr>
+                <tr><td><div class="skeleton sk-cell"></div></td><td class="hide-mobile"><div class="skeleton sk-cell"></div></td><td><div class="skeleton sk-cell"></div></td><td><div class="skeleton sk-cell"></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</div><!-- /.container -->
+
+<script>
+(function () {
+  'use strict';
+
+  // ── Formatters ────────────────────────────────────────────
+  const gbp = new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' });
+  const num = new Intl.NumberFormat('en-GB');
+
+  // ── Chart instances ───────────────────────────────────────
+  let salesChart = null;
+  let categoryChart = null;
+
+  // ── State ─────────────────────────────────────────────────
+  let currentPeriod = 'last_30_days';
+  let cachedTotals  = null;
+
+  // ── Helpers ───────────────────────────────────────────────
+
+  function esc(str) {
+    return String(str ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function el(id) { return document.getElementById(id); }
+
+  function setHTML(id, html) {
+    const node = el(id);
+    if (node) node.innerHTML = html;
+  }
+
+  function showError(id, msg) {
+    setHTML(id, `<div class="error-box">Unable to load data: ${esc(msg)}</div>`);
+  }
+
+  // ── API fetch ─────────────────────────────────────────────
+
+  async function apiFetch(path) {
+    const res = await fetch(path);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    return data;
+  }
+
+  // ── Skeleton helpers ──────────────────────────────────────
+
+  function skCardHTML() {
+    return `<div class="card">
+      <div class="skeleton sk-label"></div>
+      <div class="skeleton sk-value"></div>
+    </div>`;
+  }
+
+  function resetSalesSkeletons() {
+    setHTML('summary-cards',
+      skCardHTML() + skCardHTML() + skCardHTML() + skCardHTML()
+    );
+    setHTML('sales-chart-container', '<div class="skeleton sk-chart"></div>');
+    el('last-updated').textContent = '';
+  }
+
+  // ── RENDER: Summary cards ─────────────────────────────────
+
+  function renderSummaryCards(salesData, totalsData) {
+    const totalSales  = parseFloat(salesData.total_sales  || 0);
+    const totalOrders = parseInt(salesData.total_orders   || 0, 10);
+    const avgOrder    = totalOrders > 0 ? totalSales / totalOrders : 0;
+
+    let productsCount = '—';
+    if (totalsData && Array.isArray(totalsData.products)) {
+      const total = totalsData.products.reduce(
+        (sum, p) => sum + parseInt(p.total || 0, 10), 0
+      );
+      productsCount = num.format(total);
+    }
+
+    setHTML('summary-cards', `
+      <div class="card">
+        <p class="card-label">Total Revenue</p>
+        <p class="card-value">${gbp.format(totalSales)}</p>
+      </div>
+      <div class="card">
+        <p class="card-label">Total Orders</p>
+        <p class="card-value">${num.format(totalOrders)}</p>
+      </div>
+      <div class="card">
+        <p class="card-label">Products Listed</p>
+        <p class="card-value">${productsCount}</p>
+      </div>
+      <div class="card">
+        <p class="card-label">Average Order Value</p>
+        <p class="card-value">${gbp.format(avgOrder)}</p>
+      </div>
+    `);
+
+    if (salesData.fetchedAt) {
+      el('last-updated').textContent =
+        'Last updated: ' + new Date(salesData.fetchedAt)
+          .toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+    }
+  }
+
+  // ── RENDER: Sales trend chart ─────────────────────────────
+
+  function renderSalesTrend(salesData) {
+    const container = el('sales-chart-container');
+    const totals    = salesData.totals || {};
+    const entries   = Object.entries(totals)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+
+    if (entries.length === 0) {
+      container.innerHTML = '<div class="empty-box">No sales data available for this period.</div>';
+      return;
+    }
+
+    const labels = entries.map(([date]) => {
+      const d = new Date(date + 'T00:00:00');
+      return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    });
+    const values = entries.map(([, day]) => parseFloat(day.sales || 0));
+
+    if (salesChart) { salesChart.destroy(); salesChart = null; }
+
+    container.innerHTML = '<canvas id="sales-canvas"></canvas>';
+    const ctx = el('sales-canvas').getContext('2d');
+
+    salesChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Daily Revenue',
+          data: values,
+          borderColor: '#3B82F6',
+          backgroundColor: 'rgba(59,130,246,0.10)',
+          fill: true,
+          tension: 0.35,
+          pointRadius: entries.length > 60 ? 0 : 3,
+          pointHoverRadius: 5,
+          borderWidth: 2,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: items => items[0].label,
+              label: item => ' ' + gbp.format(item.parsed.y),
+            },
+          },
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: {
+              maxTicksLimit: 10,
+              maxRotation: 0,
+            },
+          },
+          y: {
+            beginAtZero: true,
+            ticks: { callback: v => gbp.format(v) },
+          },
+        },
+      },
+    });
+  }
+
+  // ── RENDER: Top sellers ───────────────────────────────────
+
+  function renderTopSellers(data) {
+    const sellers = (data.topSellers || []).slice(0, 10);
+
+    if (sellers.length === 0) {
+      setHTML('top-sellers-container', '<div class="empty-box">No top seller data available.</div>');
+      return;
+    }
+
+    const rows = sellers.map((s, i) => `
+      <tr>
+        <td class="hide-mobile" style="color:var(--color-text-muted);width:3rem;">${i + 1}</td>
+        <td>${esc(s.title)}</td>
+        <td style="font-weight:600;">${num.format(s.quantity)}</td>
+      </tr>`).join('');
+
+    setHTML('top-sellers-container', `
+      <div class="table-scroll">
+        <table>
+          <thead><tr>
+            <th class="hide-mobile">#</th>
+            <th>Product</th>
+            <th>Units Sold</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`);
+  }
+
+  // ── RENDER: Category chart ────────────────────────────────
+
+  const CHART_COLORS = [
+    '#3B82F6','#10B981','#F59E0B','#EF4444','#8B5CF6',
+    '#EC4899','#14B8A6','#F97316','#6366F1','#84CC16',
+    '#0EA5E9','#A855F7',
+  ];
+
+  function renderCategoryChart(data) {
+    const container  = el('category-chart-container');
+    const categories = (data.categories || []).filter(c => c.count > 0);
+
+    if (categories.length === 0) {
+      container.innerHTML = '<div class="empty-box">No category data available.</div>';
+      return;
+    }
+
+    if (categoryChart) { categoryChart.destroy(); categoryChart = null; }
+
+    container.innerHTML = '<canvas id="category-canvas"></canvas>';
+    const ctx = el('category-canvas').getContext('2d');
+
+    categoryChart = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: categories.map(c => c.name),
+        datasets: [{
+          data: categories.map(c => c.count),
+          backgroundColor: categories.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]),
+          borderWidth: 2,
+          borderColor: '#fff',
+          hoverOffset: 6,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              padding: 14,
+              usePointStyle: true,
+              pointStyleWidth: 10,
+              font: { size: 12 },
+            },
+          },
+          tooltip: {
+            callbacks: {
+              label: item => ` ${item.label}: ${num.format(item.parsed)} product${item.parsed !== 1 ? 's' : ''}`,
+            },
+          },
+        },
+      },
+    });
+  }
+
+  // ── RENDER: Stock status table ────────────────────────────
+
+  function stockStatus(p) {
+    if (p.stockStatus === 'outofstock' || p.stockQuantity === 0) return 'out';
+    if (p.stockQuantity !== null && p.stockQuantity <= 5)         return 'low';
+    return 'in';
+  }
+
+  const STATUS_ORDER = { out: 0, low: 1, in: 2 };
+
+  function renderStockTable(data) {
+    const products = (data.products || []).filter(p => p.manageStock);
+
+    if (products.length === 0) {
+      setHTML('stock-table-container',
+        '<div class="empty-box">No managed-stock products found.</div>');
+      return;
+    }
+
+    const sorted = [...products].sort(
+      (a, b) => STATUS_ORDER[stockStatus(a)] - STATUS_ORDER[stockStatus(b)]
+    );
+
+    const rows = sorted.map(p => {
+      const s = stockStatus(p);
+      const badge = s === 'out'
+        ? '<span class="badge badge-danger">Out of Stock</span>'
+        : s === 'low'
+          ? '<span class="badge badge-warning">Low Stock</span>'
+          : '<span class="badge badge-success">In Stock</span>';
+
+      const price = p.price
+        ? gbp.format(parseFloat(p.price))
+        : '<span style="color:var(--color-text-muted)">—</span>';
+
+      const qty = p.stockQuantity !== null
+        ? num.format(p.stockQuantity)
+        : '<span style="color:var(--color-text-muted)">—</span>';
+
+      return `<tr>
+        <td>${esc(p.name)}</td>
+        <td class="hide-mobile">${price}</td>
+        <td>${qty}</td>
+        <td>${badge}</td>
+      </tr>`;
+    }).join('');
+
+    setHTML('stock-table-container', `
+      <div class="table-scroll">
+        <table>
+          <thead><tr>
+            <th>Product</th>
+            <th class="hide-mobile">Price</th>
+            <th>Stock</th>
+            <th>Status</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`);
+  }
+
+  // ── Period selector ───────────────────────────────────────
+
+  document.querySelectorAll('.period-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const period = btn.dataset.period;
+      if (period === currentPeriod) return;
+      currentPeriod = period;
+
+      document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      resetSalesSkeletons();
+
+      try {
+        const salesData = await apiFetch(`/api/sales?period=${currentPeriod}`);
+        renderSummaryCards(salesData, cachedTotals);
+        renderSalesTrend(salesData);
+      } catch (err) {
+        showError('summary-cards', err.message);
+        showError('sales-chart-container', err.message);
+      }
+    });
+  });
+
+  // ── Init ──────────────────────────────────────────────────
+
+  async function init() {
+    const [salesRes, productsRes, categoriesRes, topSellersRes, totalsRes] =
+      await Promise.allSettled([
+        apiFetch(`/api/sales?period=${currentPeriod}`),
+        apiFetch('/api/products'),
+        apiFetch('/api/categories'),
+        apiFetch('/api/top-sellers'),
+        apiFetch('/api/totals'),
+      ]);
+
+    // Cache totals for period re-fetches
+    if (totalsRes.status === 'fulfilled') {
+      cachedTotals = totalsRes.value;
+    }
+
+    // Summary cards + sales chart (both depend on salesRes)
+    if (salesRes.status === 'fulfilled') {
+      renderSummaryCards(salesRes.value, cachedTotals);
+      renderSalesTrend(salesRes.value);
+    } else {
+      showError('summary-cards', salesRes.reason?.message ?? 'Failed to load');
+      showError('sales-chart-container', salesRes.reason?.message ?? 'Failed to load');
+    }
+
+    // Top sellers
+    if (topSellersRes.status === 'fulfilled') {
+      renderTopSellers(topSellersRes.value);
+    } else {
+      showError('top-sellers-container', topSellersRes.reason?.message ?? 'Failed to load');
+    }
+
+    // Category chart
+    if (categoriesRes.status === 'fulfilled') {
+      renderCategoryChart(categoriesRes.value);
+    } else {
+      showError('category-chart-container', categoriesRes.reason?.message ?? 'Failed to load');
+    }
+
+    // Stock table
+    if (productsRes.status === 'fulfilled') {
+      renderStockTable(productsRes.value);
+    } else {
+      showError('stock-table-container', productsRes.reason?.message ?? 'Failed to load');
+    }
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
