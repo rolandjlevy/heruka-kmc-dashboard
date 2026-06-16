@@ -7,6 +7,13 @@ function getPeriodDates(period) {
   return { date_min: start.toISOString().split('T')[0], date_max: dateMax };
 }
 
+// Some WooCommerce hosts run bot-protection (e.g. Imunify360) that blocks
+// requests lacking a browser-like Accept/User-Agent header with a 415.
+const WC_FETCH_HEADERS = {
+  Accept: 'application/json',
+  'User-Agent': 'Mozilla/5.0 (compatible; HerukaKmcDashboard/1.0)',
+};
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate');
 
@@ -20,7 +27,8 @@ export default async function handler(req, res) {
 
   try {
     const response = await fetch(
-      `${baseUrl}/reports/sales?date_min=${date_min}&date_max=${date_max}&${auth}`
+      `${baseUrl}/reports/sales?date_min=${date_min}&date_max=${date_max}&${auth}`,
+      { headers: WC_FETCH_HEADERS }
     );
 
     if (!response.ok) {
@@ -28,6 +36,10 @@ export default async function handler(req, res) {
     }
 
     const data = await response.json();
+
+    if (data?.total_sales === undefined && data?.message) {
+      throw new Error(data.message);
+    }
 
     res.status(200).json({
       total_sales: data.total_sales,
