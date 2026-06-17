@@ -5,6 +5,15 @@ const WC_FETCH_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (compatible; HerukaKmcDashboard/1.0)',
 };
 
+function getPeriodDates(period) {
+  const today = new Date();
+  const dateMax = today.toISOString().split('T')[0];
+  const days = period === 'last_90_days' ? 90 : 30;
+  const start = new Date(today);
+  start.setDate(start.getDate() - days);
+  return { date_min: start.toISOString().split('T')[0], date_max: dateMax };
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate');
 
@@ -13,11 +22,20 @@ export default async function handler(req, res) {
   const secret = process.env.WC_CONSUMER_SECRET;
   const auth = `consumer_key=${key}&consumer_secret=${secret}`;
 
+  const period = req.query?.period || 'last_30_days';
+  const { date_min, date_max } = getPeriodDates(period);
+
   try {
-    const firstRes = await fetch(
-      `${baseUrl}/products?per_page=100&status=publish&${auth}`,
-      { headers: WC_FETCH_HEADERS }
-    );
+    const [firstRes, topSellersRes] = await Promise.all([
+      fetch(
+        `${baseUrl}/products?per_page=100&status=publish&${auth}`,
+        { headers: WC_FETCH_HEADERS }
+      ),
+      fetch(
+        `${baseUrl}/reports/top_sellers?date_min=${date_min}&date_max=${date_max}&${auth}`,
+        { headers: WC_FETCH_HEADERS }
+      ),
+    ]);
 
     if (!firstRes.ok) {
       throw new Error(`WooCommerce API error: ${firstRes.status}`);
@@ -49,6 +67,13 @@ export default async function handler(req, res) {
       allProducts = [...firstPage, ...additionalPages.flat()];
     }
 
+    const topSellersData = topSellersRes.ok ? await topSellersRes.json() : [];
+    const periodSales = new Map(
+      Array.isArray(topSellersData)
+        ? topSellersData.map(s => [s.product_id, s.quantity])
+        : []
+    );
+
     const products = allProducts.map(p => ({
       id: p.id,
       name: p.name,
@@ -67,12 +92,12 @@ export default async function handler(req, res) {
       shortDescription: p.short_description,
       type: p.type,
       featured: p.featured,
-      totalSales: p.total_sales,
+      totalSales: periodSales.get(p.id) || 0,
       variationCount: Array.isArray(p.variations) ? p.variations.length : 0,
       ticketTypes: p.attributes?.find(a => a.variation)?.options || [],
     }));
 
-    res.status(200).json({ products, fetchedAt: new Date().toISOString() });
+    res.status(200).json({ products, period, date_min, date_max, fetchedAt: new Date().toISOString() });
   } catch (error) {
     res.status(500).json({ error: error.message, fetchedAt: new Date().toISOString() });
   }
