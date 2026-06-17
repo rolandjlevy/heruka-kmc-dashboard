@@ -722,6 +722,19 @@
     el('last-updated').textContent = '';
   }
 
+  function skInsightCardHTML() {
+    return '<div class="insight-card"><div class="skeleton sk-label"></div><div class="skeleton sk-cell"></div></div>';
+  }
+
+  function skProductCardHTML() {
+    return '<div class="product-card"><div class="skeleton sk-doughnut" style="aspect-ratio:4/3;height:auto;"></div></div>';
+  }
+
+  function resetProductSkeletons() {
+    setHTML('insight-strip', skInsightCardHTML().repeat(4));
+    setHTML('product-grid', skProductCardHTML().repeat(4));
+  }
+
   // ── RENDER: Summary cards ─────────────────────────────────
 
   function renderSummaryCards(salesData, totalsData) {
@@ -985,6 +998,7 @@
 
   let allProducts = [];
   let topPerformerIds = new Set();
+  let categoryFilterPopulated = false;
   let productFilters = { search: '', category: '', segment: 'all', sort: 'bookings_desc' };
 
   function isNew(p) {
@@ -1009,11 +1023,13 @@
     products.forEach(p => p.categories.forEach(c => categorySet.add(c.name)));
     const noBookings = products.filter(p => (p.totalSales || 0) === 0).length;
 
+    const periodLabel = currentPeriod === 'last_90_days' ? 'last 90 days' : 'last 30 days';
+
     setHTML('insight-strip', `
       <div class="insight-card">
-        <p class="insight-label">Lifetime Bookings</p>
+        <p class="insight-label">Bookings</p>
         <p class="insight-value">${num.format(totalBookings)}</p>
-        <p class="insight-sub">across ${num.format(products.length)} products</p>
+        <p class="insight-sub">across ${num.format(products.length)} products &middot; ${periodLabel}</p>
       </div>
       <div class="insight-card">
         <p class="insight-label">Best Seller</p>
@@ -1141,7 +1157,10 @@
 
     topPerformerIds = computeTopPerformers(allProducts);
     renderInsightStrip(allProducts);
-    populateCategoryFilter(allProducts);
+    if (!categoryFilterPopulated) {
+      populateCategoryFilter(allProducts);
+      categoryFilterPopulated = true;
+    }
     renderProductGrid();
   }
 
@@ -1181,6 +1200,7 @@
       btn.classList.add('active');
 
       resetSalesSkeletons();
+      resetProductSkeletons();
 
       try {
         const salesData = await apiFetch(`/api/sales?period=${currentPeriod}`);
@@ -1189,6 +1209,14 @@
       } catch (err) {
         showError('summary-cards', err.message);
         showError('sales-chart-container', err.message);
+      }
+
+      try {
+        const productsData = await apiFetch(`/api/products?period=${currentPeriod}`);
+        renderProductInsights(productsData);
+      } catch (err) {
+        showError('insight-strip', err.message);
+        showError('product-grid', err.message);
       }
     });
   });
@@ -1199,7 +1227,7 @@
     const [salesRes, productsRes, categoriesRes, topSellersRes, totalsRes] =
       await Promise.allSettled([
         apiFetch(`/api/sales?period=${currentPeriod}`),
-        apiFetch('/api/products'),
+        apiFetch(`/api/products?period=${currentPeriod}`),
         apiFetch('/api/categories'),
         apiFetch('/api/top-sellers'),
         apiFetch('/api/totals'),
