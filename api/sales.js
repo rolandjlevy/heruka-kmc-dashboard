@@ -35,11 +35,13 @@ export default async function handler(req, res) {
       throw new Error(`WooCommerce API error: ${response.status}`);
     }
 
-    const data = await response.json();
+    const json = await response.json();
 
-    if (data?.total_sales === undefined && data?.message) {
-      throw new Error(data.message);
+    if (!Array.isArray(json) && json?.message) {
+      throw new Error(json.message);
     }
+
+    const data = Array.isArray(json) ? (json[0] || {}) : json;
 
     res.status(200).json({
       total_sales: data.total_sales,
