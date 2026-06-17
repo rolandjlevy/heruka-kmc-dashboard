@@ -14,6 +14,59 @@ function getPeriodDates(period) {
   return { date_min: start.toISOString().split('T')[0], date_max: dateMax };
 }
 
+// The legacy `/reports/top_sellers` endpoint hardcodes its result limit to
+// 12 products server-side (WooCommerce ignores any `limit` param), so most
+// products in a larger catalogue always come back with zero sales regardless
+// of the selected period. The Analytics `/wc-analytics/reports/products`
+// endpoint reports real per-product, per-period totals for the whole
+// catalogue (paginated), so we use that instead.
+async function fetchPeriodSales(baseUrl, auth, date_min, date_max) {
+  const analyticsBase = baseUrl.replace(/\/wc\/v\d+\/?$/, '/wc-analytics');
+  const after = `${date_min}T00:00:00`;
+  const before = `${date_max}T23:59:59`;
+  const periodSales = new Map();
+
+  try {
+    const firstRes = await fetch(
+      `${analyticsBase}/reports/products?per_page=100&after=${after}&before=${before}&${auth}`,
+      { headers: WC_FETCH_HEADERS }
+    );
+    if (!firstRes.ok) return periodSales;
+
+    const totalPages = parseInt(firstRes.headers.get('X-WP-TotalPages') || '1', 10);
+    const firstPage = await firstRes.json();
+    if (!Array.isArray(firstPage)) return periodSales;
+
+    let allEntries = firstPage;
+
+    if (totalPages > 1) {
+      const pagePromises = [];
+      for (let page = 2; page <= totalPages; page++) {
+        pagePromises.push(
+          fetch(
+            `${analyticsBase}/reports/products?per_page=100&page=${page}&after=${after}&before=${before}&${auth}`,
+            { headers: WC_FETCH_HEADERS }
+          ).then(r => (r.ok ? r.json() : []))
+        );
+      }
+      const additionalPages = await Promise.all(pagePromises);
+      additionalPages.forEach(page => {
+        if (Array.isArray(page)) allEntries = allEntries.concat(page);
+      });
+    }
+
+    allEntries.forEach(entry => {
+      if (entry && typeof entry.product_id !== 'undefined') {
+        periodSales.set(entry.product_id, entry.items_sold || 0);
+      }
+    });
+  } catch {
+    // Leave periodSales empty — callers treat missing entries as 0 bookings.
+  }
+
+  return periodSales;
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate');
 
@@ -26,15 +79,12 @@ export default async function handler(req, res) {
   const { date_min, date_max } = getPeriodDates(period);
 
   try {
-    const [firstRes, topSellersRes] = await Promise.all([
+    const [firstRes, periodSales] = await Promise.all([
       fetch(
         `${baseUrl}/products?per_page=100&status=publish&${auth}`,
         { headers: WC_FETCH_HEADERS }
       ),
-      fetch(
-        `${baseUrl}/reports/top_sellers?date_min=${date_min}&date_max=${date_max}&${auth}`,
-        { headers: WC_FETCH_HEADERS }
-      ),
+      fetchPeriodSales(baseUrl, auth, date_min, date_max),
     ]);
 
     if (!firstRes.ok) {
@@ -66,13 +116,6 @@ export default async function handler(req, res) {
       });
       allProducts = [...firstPage, ...additionalPages.flat()];
     }
-
-    const topSellersData = topSellersRes.ok ? await topSellersRes.json() : [];
-    const periodSales = new Map(
-      Array.isArray(topSellersData)
-        ? topSellersData.map(s => [s.product_id, s.quantity])
-        : []
-    );
 
     const products = allProducts.map(p => ({
       id: p.id,
